@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calculator, Package, Info, RefreshCw, Scale, Settings } from 'lucide-react';
+import { Plus, Trash2, Calculator, Package, Info, RefreshCw, Scale, Settings, ChevronDown, TrendingUp, Layers } from 'lucide-react';
 
 const App = () => {
   // --- 狀態管理 ---
-  
+
+  // UI 狀態
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState<boolean>(true);
+  const [itemDetailOpen, setItemDetailOpen] = useState<{[key: number]: boolean}>({});
+
   // 全局設定
   const [exchangeRate, setExchangeRate] = useState<number>(0.024); // 韓幣匯率
   const [profitMargin, setProfitMargin] = useState<number>(30); // 預期利潤 %
@@ -149,280 +153,344 @@ const App = () => {
   // 格式化金錢
   const fmt = (num: number) => Math.round(num).toLocaleString();
 
+  // 切換商品詳細資訊
+  const toggleItemDetail = (id: number) => {
+    setItemDetailOpen(prev => ({...prev, [id]: !prev[id]}));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* 標題區 */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2">
-              <Package className="w-8 h-8 text-indigo-600" />
-              跨境進貨成本精算 (重量版)
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 text-slate-800 relative">
+      {/* 背景裝飾 - 簡約版 */}
+      <div className="fixed inset-0 opacity-5 pointer-events-none">
+        <div className="absolute top-0 -right-40 w-96 h-96 bg-emerald-400 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 -left-40 w-96 h-96 bg-green-300 rounded-full blur-3xl"></div>
+      </div>
+
+      <div className="relative max-w-md mx-auto p-4 space-y-4">
+
+        {/* 標題區 - 清新設計 */}
+        <div className="text-center py-6 relative">
+          <div className="relative space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <Layers className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h1 className="text-3xl font-display font-bold text-slate-900 tracking-tight">
+              跨境成本精算
             </h1>
-            <p className="text-slate-500 text-sm mt-1">
-              以重量 (KG) 精準分攤運費，解決服飾輕重成本差異
+            <p className="text-slate-600 text-sm font-light">
+              重量權重 · 精準分攤 · 利潤優化
             </p>
           </div>
-          <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex flex-wrap items-center gap-4">
-            <div className="flex flex-col">
-              <label className="text-xs text-slate-400 font-medium uppercase">匯率 (KRW→TWD)</label>
-              <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-slate-400" />
-                <input 
-                  type="number" 
-                  step="0.001"
-                  value={exchangeRate}
-                  onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
-                  className="w-20 font-mono font-bold text-lg bg-transparent outline-none text-indigo-600 border-b border-dashed border-slate-300 focus:border-indigo-500"
-                />
-              </div>
-            </div>
-            <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
-            <div className="flex flex-col">
-              <label className="text-xs text-slate-400 font-medium uppercase">預期利潤 %</label>
-              <div className="flex items-center gap-1">
-                <input 
-                  type="number" 
-                  value={profitMargin}
-                  onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)}
-                  className="w-16 font-mono font-bold text-lg bg-transparent outline-none text-emerald-600 border-b border-dashed border-slate-300 focus:border-emerald-500"
-                />
-                <span className="text-emerald-600 font-bold">%</span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* 左側：費率設定區 */}
-          <div className="lg:col-span-3 space-y-6">
-            
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="bg-slate-800 px-5 py-3 border-b border-slate-700 flex justify-between items-center">
-                <h2 className="font-semibold text-white flex items-center gap-2">
-                  <Settings className="w-4 h-4" /> 費率與重量設定
-                </h2>
-              </div>
-              <div className="p-5 space-y-5">
-                
-                {/* 總重量設定 */}
-                <div className="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-                  <label className="text-sm font-bold text-indigo-900 flex items-center gap-1 mb-1">
-                    <Scale className="w-4 h-4" /> 本批總重量 (KG)
-                  </label>
-                  <p className="text-xs text-indigo-600 mb-2">物流公司量秤的計費重量</p>
-                  <input 
-                    type="number" 
-                    value={totalBilledWeight}
-                    onChange={(e) => setTotalBilledWeight(parseFloat(e.target.value) || 0)}
-                    className="w-full text-right text-xl font-bold p-2 border border-indigo-200 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-indigo-700"
+        {/* 快速設定卡片 - 匯率與利潤 */}
+        <div className="bg-white rounded-2xl border border-emerald-200 shadow-lg shadow-emerald-100/50 overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-50 to-transparent px-5 py-4 border-b border-emerald-100">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+              <h2 className="text-lg font-semibold text-slate-800">快速設定</h2>
+            </div>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs text-slate-600 uppercase tracking-wide font-medium flex items-center gap-1">
+                  <RefreshCw className="w-3 h-3" /> 匯率
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={exchangeRate}
+                    onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-lg font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                   />
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase">國際運費 (KRW/KG)</label>
-                    <div className="relative mt-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <span className="text-slate-400 text-sm">₩</span>
-                      </div>
-                      <input 
-                        type="number" 
-                        value={rates.intlRateKRW}
-                        onChange={(e) => handleRateChange('intlRateKRW', e.target.value)}
-                        className="w-full text-right p-2 pl-8 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase">關稅&國內運 (TWD/KG)</label>
-                    <div className="relative mt-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <span className="text-slate-400 text-sm">$</span>
-                      </div>
-                      <input 
-                        type="number" 
-                        value={rates.taxDomesticRateTWD}
-                        onChange={(e) => handleRateChange('taxDomesticRateTWD', e.target.value)}
-                        className="w-full text-right p-2 pl-8 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 uppercase">箱子費用 (KRW/箱)</label>
-                    <div className="relative mt-1">
-                      <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <span className="text-slate-400 text-sm">₩</span>
-                      </div>
-                      <input 
-                        type="number" 
-                        value={rates.boxCostKRW}
-                        onChange={(e) => handleRateChange('boxCostKRW', e.target.value)}
-                        className="w-full text-right p-2 pl-8 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none"
-                      />
-                    </div>
-                    <div className="text-[10px] text-right text-slate-400 mt-1">
-                      ≈ TWD {fmt(rates.boxCostKRW * exchangeRate)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 總結區塊 */}
-                <div className="pt-4 border-t border-slate-100 space-y-2">
-                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">國際運費總額</span>
-                    <span className="font-medium">${fmt(totals.totalIntlShipTWD)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">關稅國內運總額</span>
-                    <span className="font-medium">${fmt(totals.totalTaxDomTWD)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">韓國費用(3%)</span>
-                    <span className="font-medium">${fmt(totals.totalHandlingFeeTWD)}</span>
-                  </div>
-                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">箱子費總額</span>
-                    <span className="font-medium">${fmt(totals.totalBoxTWD)}</span>
-                  </div>
-                  <div className="pt-2 border-t border-dashed border-slate-200 flex justify-between items-end">
-                    <span className="text-xs font-bold text-slate-700">總雜支成本</span>
-                    <span className="text-lg font-bold text-indigo-600">
-                      ${fmt(totals.totalIntlShipTWD + totals.totalTaxDomTWD + totals.totalBoxTWD + totals.totalHandlingFeeTWD)}
-                    </span>
-                  </div>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">KRW</span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* 右側：商品清單 */}
-          <div className="lg:col-span-9 space-y-4">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full">
-              <div className="px-5 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                <div className="flex items-center gap-4">
-                  <h2 className="font-semibold text-slate-700 flex items-center gap-2">
-                    <Calculator className="w-4 h-4" /> 詳細計算
-                  </h2>
-                  <div className="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded border border-amber-200">
-                    目前商品總重: <strong>{totals.totalItemWeight?.toFixed(2)} kg</strong> 
-                    {Math.abs(totals.totalItemWeight - totalBilledWeight) > 0.5 && (
-                      <span className="ml-1 opacity-75">(與計費重量差 {Math.abs(totals.totalItemWeight - totalBilledWeight).toFixed(2)} kg)</span>
-                    )}
-                  </div>
-                </div>
-                <button 
-                  onClick={addItem}
-                  className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> 新增商品
-                </button>
-              </div>
-
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                    <tr>
-                      <th className="px-2 py-3 font-medium w-8"></th>
-                      <th className="px-2 py-3 font-medium min-w-[120px]">商品名稱</th>
-                      <th className="px-2 py-3 font-medium text-right w-20">單重(kg)</th>
-                      <th className="px-2 py-3 font-medium text-right w-24">韓幣單價</th>
-                      <th className="px-2 py-3 font-medium text-right w-16">數量</th>
-                      <th className="px-2 py-3 font-medium text-right text-slate-400 w-20 hidden xl:table-cell">3%費用</th>
-                      <th className="px-2 py-3 font-medium text-right text-slate-400 w-20 hidden xl:table-cell">運費分攤</th>
-                      <th className="px-2 py-3 font-medium text-right bg-orange-50/50 text-orange-700 w-24 border-l border-slate-100">
-                        實際成本
-                      </th>
-                      <th className="px-2 py-3 font-medium text-right bg-emerald-50/50 text-emerald-700 w-24">
-                        建議售價
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {results.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
-                        <td className="px-2 py-3 text-center">
-                          <button 
-                            onClick={() => removeItem(item.id)}
-                            className="text-slate-300 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                        <td className="px-2 py-3">
-                          <input 
-                            type="text" 
-                            value={item.name}
-                            placeholder="品名"
-                            onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
-                            className="w-full bg-transparent border-b border-transparent focus:border-indigo-500 outline-none py-1"
-                          />
-                        </td>
-                        <td className="px-2 py-3 text-right">
-                          <input 
-                            type="number" 
-                            step="0.1"
-                            value={item.weight || ''}
-                            onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
-                            className="w-full text-right bg-indigo-50/50 border-b border-transparent focus:border-indigo-500 outline-none py-1 font-mono text-indigo-600 rounded px-1"
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-2 py-3 text-right">
-                          <input 
-                            type="number" 
-                            value={item.priceKRW || ''}
-                            onChange={(e) => handleItemChange(item.id, 'priceKRW', e.target.value)}
-                            className="w-full text-right bg-transparent border-b border-transparent focus:border-indigo-500 outline-none py-1 font-mono text-slate-600"
-                          />
-                        </td>
-                        <td className="px-2 py-3 text-right">
-                          <input 
-                            type="number" 
-                            value={item.quantity || ''}
-                            onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
-                            className="w-full text-right bg-transparent border-b border-transparent focus:border-indigo-500 outline-none py-1 font-mono text-slate-600"
-                          />
-                        </td>
-                        
-                        {/* 詳細分拆 (大螢幕顯示) */}
-                        <td className="px-2 py-3 text-right text-xs text-slate-400 hidden xl:table-cell">
-                          ${fmt(item.handlingFee)}
-                        </td>
-                        <td className="px-2 py-3 text-right text-xs text-slate-400 hidden xl:table-cell">
-                          ${fmt(item.unitIntlShip + item.unitTaxDom + item.unitBox)}
-                        </td>
-
-                        <td className="px-2 py-3 text-right font-bold text-orange-600 bg-orange-50/30 border-l border-slate-100">
-                          ${fmt(item.finalUnitCost)}
-                        </td>
-                        <td className="px-2 py-3 text-right font-bold text-emerald-600 bg-emerald-50/30">
-                          ${fmt(item.suggestedPrice)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 space-y-1">
-                <div className="flex items-start gap-2">
-                  <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                  <p>
-                    <strong>計算邏輯說明 (重量權重)：</strong><br/>
-                    1. <strong>運費計算</strong>：依據左側設定的 KG 單價 × 總計費重量，算出這整箱要付多少錢。<br/>
-                    2. <strong>運費分攤</strong>：系統依據每一行商品的 <code>單重 × 數量</code> 計算重量佔比。如果你有填寫單重，大衣分攤的運費就會比襪子多；如果沒填單重，則依數量平均分攤。<br/>
-                    3. <strong>韓國費用</strong>：維持商品金額 3%。
-                  </p>
+              <div className="space-y-2">
+                <label className="text-xs text-slate-600 uppercase tracking-wide font-medium">利潤率</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={profitMargin}
+                    onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)}
+                    className="w-full bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2.5 text-lg font-mono font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg text-emerald-600 font-bold">%</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* 費率與重量設定 - 可折疊 */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+          <button
+            onClick={() => setSettingsPanelOpen(!settingsPanelOpen)}
+            className="w-full px-5 py-4 flex items-center justify-between bg-gradient-to-r from-slate-50 to-transparent hover:from-slate-100 transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-slate-600" />
+              <h2 className="font-semibold text-slate-800">費率與重量設定</h2>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${settingsPanelOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          <div className={`overflow-hidden transition-all duration-300 ${settingsPanelOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="p-5 space-y-5 border-t border-slate-200">
+
+              {/* 總重量設定 */}
+              <div className="relative bg-gradient-to-br from-emerald-50 to-green-50 p-4 rounded-xl border border-emerald-200 overflow-hidden">
+                <label className="text-sm font-bold text-emerald-800 flex items-center gap-2 mb-2">
+                  <Scale className="w-4 h-4" /> 本批總重量 (KG)
+                </label>
+                <p className="text-xs text-emerald-600 mb-3">物流公司量秤的計費重量</p>
+                <input
+                  type="number"
+                  value={totalBilledWeight}
+                  onChange={(e) => setTotalBilledWeight(parseFloat(e.target.value) || 0)}
+                  className="w-full text-center text-3xl font-mono font-black p-3 bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-emerald-700 transition-all"
+                />
+              </div>
+
+              {/* 費率輸入 */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-slate-600 uppercase tracking-wide font-medium block mb-2">
+                    國際運費 (KRW/KG)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₩</span>
+                    <input
+                      type="number"
+                      value={rates.intlRateKRW}
+                      onChange={(e) => handleRateChange('intlRateKRW', e.target.value)}
+                      className="w-full text-right pr-3 pl-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 font-mono transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-600 uppercase tracking-wide font-medium block mb-2">
+                    關稅&國內運 (TWD/KG)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      value={rates.taxDomesticRateTWD}
+                      onChange={(e) => handleRateChange('taxDomesticRateTWD', e.target.value)}
+                      className="w-full text-right pr-3 pl-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 font-mono transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs text-slate-600 uppercase tracking-wide font-medium block mb-2">
+                    箱子費用 (KRW/箱)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₩</span>
+                    <input
+                      type="number"
+                      value={rates.boxCostKRW}
+                      onChange={(e) => handleRateChange('boxCostKRW', e.target.value)}
+                      className="w-full text-right pr-3 pl-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 font-mono transition-all"
+                    />
+                  </div>
+                  <div className="text-[10px] text-right text-slate-400 mt-1">
+                    ≈ TWD {fmt(rates.boxCostKRW * exchangeRate)}
+                  </div>
+                </div>
+              </div>
+
+              {/* 總結區塊 */}
+              <div className="pt-4 border-t border-slate-200 space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">國際運費總額</span>
+                  <span className="font-mono text-slate-700">${fmt(totals.totalIntlShipTWD)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">關稅國內運總額</span>
+                  <span className="font-mono text-slate-700">${fmt(totals.totalTaxDomTWD)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">韓國費用(3%)</span>
+                  <span className="font-mono text-slate-700">${fmt(totals.totalHandlingFeeTWD)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600">箱子費總額</span>
+                  <span className="font-mono text-slate-700">${fmt(totals.totalBoxTWD)}</span>
+                </div>
+                <div className="pt-3 border-t border-emerald-200 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-transparent p-3 rounded-lg -mx-1">
+                  <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">總雜支成本</span>
+                  <span className="text-2xl font-black font-mono text-emerald-600">
+                    ${fmt(totals.totalIntlShipTWD + totals.totalTaxDomTWD + totals.totalBoxTWD + totals.totalHandlingFeeTWD)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 商品清單統計橫幅 */}
+        <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl border border-emerald-200 p-4 flex items-center justify-between shadow-md">
+          <div>
+            <div className="text-xs text-slate-600 uppercase tracking-wide mb-1">目前商品總重</div>
+            <div className="text-2xl font-black font-mono text-emerald-700">
+              {totals.totalItemWeight?.toFixed(2)} <span className="text-sm text-slate-500">kg</span>
+            </div>
+            {Math.abs(totals.totalItemWeight - totalBilledWeight) > 0.5 && (
+              <div className="text-[10px] text-emerald-600 mt-1">
+                與計費重量差 {Math.abs(totals.totalItemWeight - totalBilledWeight).toFixed(2)} kg
+              </div>
+            )}
+          </div>
+          <button
+            onClick={addItem}
+            className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/30 active:scale-95"
+          >
+            <Plus className="w-4 h-4" /> 新增商品
+          </button>
+        </div>
+
+        {/* 商品列表 - 卡片式設計 */}
+        <div className="space-y-3">
+          {results.map((item) => (
+            <div
+              key={item.id}
+              className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden group hover:border-emerald-300 hover:shadow-lg transition-all"
+            >
+              {/* 商品主要資訊 */}
+              <div className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="mt-1 text-slate-400 hover:text-red-500 transition-colors p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <div className="flex-1 space-y-3">
+                    <input
+                      type="text"
+                      value={item.name}
+                      placeholder="輸入商品名稱..."
+                      onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                    />
+
+                    {/* 輸入欄位網格 */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-600 uppercase block mb-1">單重(kg)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={item.weight || ''}
+                          onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
+                          className="w-full bg-emerald-50 border border-emerald-300 rounded-lg px-2 py-1.5 text-center text-emerald-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-600 uppercase block mb-1">韓幣單價</label>
+                        <input
+                          type="number"
+                          value={item.priceKRW || ''}
+                          onChange={(e) => handleItemChange(item.id, 'priceKRW', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-600 uppercase block mb-1">數量</label>
+                        <input
+                          type="number"
+                          value={item.quantity || ''}
+                          onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 結果顯示 */}
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-200">
+                  <div className="bg-gradient-to-br from-orange-50 to-red-50 p-3 rounded-xl border border-orange-200">
+                    <div className="text-[10px] text-orange-600 uppercase tracking-wide mb-1">實際成本</div>
+                    <div className="text-xl font-black font-mono text-orange-700">
+                      ${fmt(item.finalUnitCost)}
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-3 rounded-xl border border-emerald-200">
+                    <div className="text-[10px] text-emerald-600 uppercase tracking-wide mb-1">建議售價</div>
+                    <div className="text-xl font-black font-mono text-emerald-700">
+                      ${fmt(item.suggestedPrice)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 詳細分析 - 可折疊 */}
+                <button
+                  onClick={() => toggleItemDetail(item.id)}
+                  className="w-full flex items-center justify-between text-xs text-slate-600 hover:text-emerald-600 transition-colors py-2"
+                >
+                  <span className="flex items-center gap-1">
+                    <Calculator className="w-3 h-3" />
+                    詳細成本拆解
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${itemDetailOpen[item.id] ? 'rotate-180' : ''}`} />
+                </button>
+
+                {itemDetailOpen[item.id] && (
+                  <div className="space-y-2 pt-2 border-t border-slate-200 text-xs animate-in fade-in duration-200">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">商品本體 (TWD)</span>
+                      <span className="font-mono text-slate-700">${fmt(item.baseCostTWD)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">韓國費用 (3%)</span>
+                      <span className="font-mono text-slate-700">${fmt(item.handlingFee)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">國際運費分攤</span>
+                      <span className="font-mono text-slate-700">${fmt(item.unitIntlShip)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">關稅&國內運分攤</span>
+                      <span className="font-mono text-slate-700">${fmt(item.unitTaxDom)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">箱子費用分攤</span>
+                      <span className="font-mono text-slate-700">${fmt(item.unitBox)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-emerald-200">
+                      <span className="text-slate-700 font-semibold">批次總成本</span>
+                      <span className="font-mono text-emerald-700 font-bold">${fmt(item.totalCostBatch)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 說明區塊 */}
+        <div className="bg-gradient-to-br from-emerald-50/50 to-green-50/50 rounded-2xl border border-emerald-200 p-4">
+          <div className="flex gap-3">
+            <Info className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-slate-700 space-y-2 leading-relaxed">
+              <p className="text-emerald-700 font-semibold">計算邏輯說明 (重量權重)</p>
+              <p><span className="text-slate-800 font-medium">運費計算：</span>依據設定的 KG 單價 × 總計費重量。</p>
+              <p><span className="text-slate-800 font-medium">運費分攤：</span>依據 單重 × 數量 計算重量佔比。重物分攤較多運費。</p>
+              <p><span className="text-slate-800 font-medium">韓國費用：</span>維持商品金額 3%。</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 底部間距 */}
+        <div className="h-8"></div>
       </div>
     </div>
   );
