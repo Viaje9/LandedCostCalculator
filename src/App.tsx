@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calculator, Package, Truck, Info, RefreshCw, Scale, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, Calculator, Package, Info, RefreshCw, Scale, Settings } from 'lucide-react';
 
 const App = () => {
   // --- 狀態管理 ---
