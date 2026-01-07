@@ -7,6 +7,7 @@ const App = () => {
   // UI 狀態
   const [settingsPanelOpen, setSettingsPanelOpen] = useState<boolean>(true);
   const [itemDetailOpen, setItemDetailOpen] = useState<{[key: number]: boolean}>({});
+  const [isInitialized, setIsInitialized] = useState<boolean>(false); // 追蹤是否已初始化
 
   // 全局設定
   const [exchangeRate, setExchangeRate] = useState<number>(0.024); // 韓幣匯率
@@ -23,15 +24,37 @@ const App = () => {
   });
 
   // 商品列表 (新增 weight 欄位)
-  const [items, setItems] = useState([
-    { id: 1, name: '手工羊毛大衣', priceKRW: 150000, quantity: 2, weight: 1.2 },
-    { id: 2, name: '基本款棉T', priceKRW: 12000, quantity: 10, weight: 0.2 },
-    { id: 3, name: '羅紋襪子', priceKRW: 3000, quantity: 20, weight: 0.05 },
-  ]);
+  interface Item {
+    id: number;
+    name: string;
+    priceKRW: number;
+    quantity: number;
+    weight: number;
+  }
+  const [items, setItems] = useState<Item[]>([]);
 
   // 計算結果
   const [results, setResults] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({});
+
+  // --- localStorage 初始化：載入資料 ---
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem('costCalculatorData');
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        if (data.exchangeRate !== undefined) setExchangeRate(data.exchangeRate);
+        if (data.profitMargin !== undefined) setProfitMargin(data.profitMargin);
+        if (data.totalBilledWeight !== undefined) setTotalBilledWeight(data.totalBilledWeight);
+        if (data.rates) setRates(data.rates);
+        if (data.items) setItems(data.items);
+      }
+    } catch (error) {
+      console.error('Failed to load data from localStorage:', error);
+    }
+    // 標記初始化完成
+    setIsInitialized(true);
+  }, []); // 只在初始化時執行一次
 
   // --- 計算核心邏輯 ---
   useEffect(() => {
@@ -124,6 +147,25 @@ const App = () => {
     });
 
   }, [items, rates, totalBilledWeight, exchangeRate, profitMargin]);
+
+  // --- localStorage 自動儲存：監聽資料變化並儲存 ---
+  useEffect(() => {
+    // 只有在初始化完成後才儲存，避免用預設值覆蓋 localStorage
+    if (!isInitialized) return;
+
+    try {
+      const dataToSave = {
+        exchangeRate,
+        profitMargin,
+        totalBilledWeight,
+        rates,
+        items,
+      };
+      localStorage.setItem('costCalculatorData', JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error('Failed to save data to localStorage:', error);
+    }
+  }, [exchangeRate, profitMargin, totalBilledWeight, rates, items, isInitialized]); // 當任一狀態改變時自動儲存
 
   // --- 事件處理 ---
   const handleRateChange = (field: string, value: string) => {
