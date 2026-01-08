@@ -1,0 +1,23 @@
+{
+  "name": "跨境進貨成本精算",
+  "short_name": "成本精算",
+  "start_url": "/LandedCostCalculator/",
+  "scope": "/LandedCostCalculator/",
+  "display": "standalone",
+  "background_color": "#0a443e",
+  "theme_color": "#118070",
+  "icons": [
+    {
+      "src": "/LandedCostCalculator/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/LandedCostCalculator/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
