@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Calculator, Info, RefreshCw, Scale, Settings, ChevronDown, TrendingUp, Layers, History, Save, Clock, ArrowRight, CheckCircle, X } from 'lucide-react';
+import { Plus, Trash2, Calculator, Info, RefreshCw, Scale, Settings, ChevronDown, TrendingUp, Layers, History, Save, Clock, ArrowRight, CheckCircle, X, Package, Search } from 'lucide-react';
 
 // --- 子組件：通知提醒 (Toast) ---
 interface ToastProps {
@@ -80,12 +80,13 @@ interface ItemCardProps {
   item: any;
   onRemove: (id: number) => void;
   onChange: (id: number, field: string, value: any) => void;
+  onBlur?: (id: number) => void;
   onToggleDetail: (id: number) => void;
   isDetailOpen: boolean;
   fmt: (num: number) => string;
 }
 
-const ItemCard = ({ item, onRemove, onChange, onToggleDetail, isDetailOpen, fmt }: ItemCardProps) => {
+const ItemCard = ({ item, onRemove, onChange, onBlur, onToggleDetail, isDetailOpen, fmt }: ItemCardProps) => {
   // 使用本地狀態處理名稱，避免 IME 輸入法問題
   const [localName, setLocalName] = useState(item.name);
   const isComposing = useRef(false);
@@ -111,6 +112,7 @@ const ItemCard = ({ item, onRemove, onChange, onToggleDetail, isDetailOpen, fmt 
   const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
     isComposing.current = false;
     onChange(item.id, 'name', e.currentTarget.value);
+    if (onBlur) onBlur(item.id);
   };
 
   return (
@@ -131,7 +133,10 @@ const ItemCard = ({ item, onRemove, onChange, onToggleDetail, isDetailOpen, fmt 
               onCompositionStart={handleCompositionStart}
               onCompositionEnd={handleCompositionEnd}
               onChange={handleNameChange}
-              onBlur={() => onChange(item.id, 'name', localName)}
+              onBlur={() => {
+                onChange(item.id, 'name', localName);
+                if (onBlur) onBlur(item.id);
+              }}
               className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
             />
 
@@ -143,6 +148,7 @@ const ItemCard = ({ item, onRemove, onChange, onToggleDetail, isDetailOpen, fmt 
                   step="0.1"
                   value={item.weight || ''}
                   onChange={(e) => onChange(item.id, 'weight', e.target.value)}
+                  onBlur={() => onBlur && onBlur(item.id)}
                   className="w-full bg-emerald-50 border border-emerald-300 rounded-lg px-2 py-1.5 text-center text-emerald-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="0"
                 />
@@ -153,6 +159,7 @@ const ItemCard = ({ item, onRemove, onChange, onToggleDetail, isDetailOpen, fmt 
                   type="number"
                   value={item.priceKRW || ''}
                   onChange={(e) => onChange(item.id, 'priceKRW', e.target.value)}
+                  onBlur={() => onBlur && onBlur(item.id)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -233,7 +240,7 @@ const App = () => {
 
   // UI 狀態
   const [settingsPanelOpen, setSettingsPanelOpen] = useState<boolean>(true);
-  const [view, setView] = useState<'calculator' | 'history'>('calculator'); // 頁面切換
+  const [view, setView] = useState<'calculator' | 'history' | 'products'>('calculator'); // 頁面切換
   const [itemDetailOpen, setItemDetailOpen] = useState<{[key: number]: boolean}>({});
   const [isInitialized, setIsInitialized] = useState<boolean>(false); // 追蹤是否已初始化
   const [notification, setNotification] = useState<string | null>(null);
@@ -272,6 +279,15 @@ const App = () => {
     weight: number;
   }
   const [items, setItems] = useState<Item[]>([]);
+
+  // 商品庫結構
+  interface Product {
+    id: string;
+    name: string;
+    priceKRW: number;
+    weight: number;
+  }
+  const [productLibrary, setProductLibrary] = useState<Product[]>([]);
 
   // 訂單紀錄結構
   interface SavedOrder {
@@ -314,6 +330,12 @@ const App = () => {
       const savedHistory = localStorage.getItem('costCalculatorHistory');
       if (savedHistory) {
         setOrderHistory(JSON.parse(savedHistory));
+      }
+
+      // 載入商品庫
+      const savedLibrary = localStorage.getItem('costCalculatorLibrary');
+      if (savedLibrary) {
+        setProductLibrary(JSON.parse(savedLibrary));
       }
     } catch (error) {
       console.error('Failed to load data from localStorage:', error);
@@ -440,11 +462,48 @@ const App = () => {
     }
   }, [orderHistory, isInitialized]);
 
+  // --- 監聽 productLibrary 變化並儲存 ---
+  useEffect(() => {
+    if (!isInitialized) return;
+    try {
+      localStorage.setItem('costCalculatorLibrary', JSON.stringify(productLibrary));
+    } catch (error) {
+      console.error('Failed to save library to localStorage:', error);
+    }
+  }, [productLibrary, isInitialized]);
+
 
   // --- 事件處理 ---
   const handleRateChange = (field: string, value: string) => {
     const numVal = parseFloat(value) || 0;
     setRates(prev => ({ ...prev, [field]: numVal }));
+  };
+
+  // 同步到商品庫
+  const syncToLibrary = (item: { name: string; priceKRW: number; weight: number }) => {
+    if (!item.name.trim()) return;
+
+    setProductLibrary(prev => {
+      const existingIdx = prev.findIndex(p => p.name === item.name);
+      if (existingIdx >= 0) {
+        // 更新現有商品
+        const newLib = [...prev];
+        newLib[existingIdx] = {
+          ...newLib[existingIdx],
+          priceKRW: item.priceKRW,
+          weight: item.weight
+        };
+        return newLib;
+      } else {
+        // 新增商品
+        return [...prev, {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+          name: item.name,
+          priceKRW: item.priceKRW,
+          weight: item.weight
+        }];
+      }
+    });
   };
 
   const handleItemChange = (id: number, field: string, value: string) => {
@@ -455,6 +514,13 @@ const App = () => {
       return item;
     });
     setItems(newItems);
+  };
+
+  const handleItemBlur = (id: number) => {
+    const item = items.find(i => i.id === id);
+    if (item && item.name.trim()) {
+      syncToLibrary(item);
+    }
   };
 
   const addItem = () => {
@@ -540,6 +606,43 @@ const App = () => {
     });
   };
 
+  // --- 商品庫功能 ---
+  const [productSearch, setProductSearch] = useState('');
+  const filteredProducts = productLibrary.filter(p => 
+    p.name.toLowerCase().includes(productSearch.toLowerCase())
+  );
+
+  const deleteProduct = (id: string) => {
+    setModalConfig({
+      isOpen: true,
+      title: '刪除商品',
+      message: '確定要從商品庫刪除此商品嗎？',
+      onConfirm: () => {
+        setProductLibrary(prev => prev.filter(p => p.id !== id));
+        setNotification('商品已刪除');
+      }
+    });
+  };
+
+  const updateProduct = (id: string, field: string, value: any) => {
+    setProductLibrary(prev => prev.map(p => 
+      p.id === id ? { ...p, [field]: field === 'name' ? value : parseFloat(value) || 0 } : p
+    ));
+  };
+
+  const importProduct = (product: Product) => {
+    const newId = items.length > 0 ? Math.max(...items.map(i => i.id)) + 1 : 1;
+    setItems([...items, { 
+      id: newId, 
+      name: product.name, 
+      priceKRW: product.priceKRW, 
+      quantity: 1, 
+      weight: product.weight 
+    }]);
+    setView('calculator');
+    setNotification(`已匯入 ${product.name}`);
+  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 text-slate-800 relative">
@@ -564,6 +667,109 @@ const App = () => {
       </div>
 
       <div className="relative max-w-md mx-auto p-4 space-y-4">
+
+        {/* --- 商品庫頁面 --- */}
+        {view === 'products' && (
+          <div className="animate-in slide-in-from-right duration-300">
+             {/* 頂部導航 */}
+            <div className="flex items-center justify-between mb-6 pt-2">
+              <button 
+                onClick={() => setView('calculator')}
+                className="flex items-center gap-1 text-slate-500 hover:text-emerald-600 transition-colors px-2 py-1 -ml-2 rounded-lg hover:bg-slate-100"
+              >
+                <ChevronDown className="w-5 h-5 rotate-90" />
+                <span className="font-medium">返回計算機</span>
+              </button>
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <Package className="w-5 h-5 text-emerald-600" />
+                商品庫
+              </h2>
+            </div>
+
+            {/* 搜尋列 */}
+            <div className="relative mb-6">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text"
+                placeholder="搜尋商品名稱..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-sm"
+              />
+            </div>
+
+            <div className="space-y-3">
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-20 text-slate-400 bg-white/50 rounded-3xl border border-slate-100">
+                  <Package className="w-16 h-16 mx-auto mb-4 opacity-20" />
+                  <p className="text-lg">商品庫空空如也</p>
+                  <p className="text-sm">在計算機新增商品時會自動保存到這裡</p>
+                </div>
+              ) : (
+                filteredProducts.map(product => (
+                  <div 
+                    key={product.id} 
+                    className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-emerald-200 transition-all group"
+                  >
+                    <div className="flex justify-between items-start gap-4 mb-3">
+                      <div className="flex-1">
+                        <input 
+                          type="text"
+                          value={product.name}
+                          onChange={(e) => updateProduct(product.id, 'name', e.target.value)}
+                          className="w-full font-bold text-slate-800 border-none p-0 focus:ring-0 bg-transparent"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => deleteProduct(product.id)}
+                        className="text-slate-300 hover:text-red-500 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] text-slate-500 uppercase block mb-1">韓幣單價</label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">₩</span>
+                          <input 
+                            type="number"
+                            value={product.priceKRW}
+                            onChange={(e) => updateProduct(product.id, 'priceKRW', e.target.value)}
+                            className="w-full font-mono text-slate-700 bg-slate-50 rounded px-2 py-1 text-sm border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 uppercase block mb-1">單重 (kg)</label>
+                        <div className="flex items-center gap-1">
+                          <Scale className="w-3 h-3 text-slate-400" />
+                          <input 
+                            type="number"
+                            step="0.1"
+                            value={product.weight}
+                            onChange={(e) => updateProduct(product.id, 'weight', e.target.value)}
+                            className="w-full font-mono text-slate-700 bg-slate-50 rounded px-2 py-1 text-sm border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-slate-50 flex gap-2">
+                      <button 
+                        onClick={() => importProduct(product)}
+                        className="flex-1 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" /> 帶入此商品
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* --- 歷史紀錄頁面 --- */}
         {view === 'history' && (
@@ -674,6 +880,13 @@ const App = () => {
               
               {/* 頂部功能列 */}
               <div className="absolute right-0 top-6 flex gap-2">
+                <button 
+                  onClick={() => setView('products')}
+                  className="p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors relative group"
+                  title="商品庫"
+                >
+                  <Package className="w-6 h-6" />
+                </button>
                 <button 
                   onClick={() => setView('history')}
                   className="p-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors relative group"
@@ -860,6 +1073,13 @@ const App = () => {
                   <Save className="w-4 h-4" />
                 </button>
                 <button
+                  onClick={() => setView('products')}
+                  className="flex items-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-3 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:shadow hover:bg-emerald-50 active:scale-95"
+                  title="從商品庫匯入"
+                >
+                  <Package className="w-4 h-4" />
+                </button>
+                <button
                   onClick={addItem}
                   className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/30 active:scale-95"
                 >
@@ -876,6 +1096,7 @@ const App = () => {
                   item={item}
                   onRemove={removeItem}
                   onChange={handleItemChange}
+                  onBlur={handleItemBlur}
                   onToggleDetail={toggleItemDetail}
                   isDetailOpen={!!itemDetailOpen[item.id]}
                   fmt={fmt}
