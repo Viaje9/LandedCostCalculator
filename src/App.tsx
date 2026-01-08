@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Calculator, Info, RefreshCw, Scale, Settings, ChevronDown, TrendingUp, Layers, History, Save, Clock, ArrowRight, CheckCircle, X } from 'lucide-react';
 
 // --- 子組件：通知提醒 (Toast) ---
