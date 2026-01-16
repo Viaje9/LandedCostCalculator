@@ -261,7 +261,7 @@ const App = () => {
   });
 
   // 全局設定
-  const [exchangeRate, setExchangeRate] = useState<number>(0.024); // 韓幣匯率
+  const [exchangeRate, setExchangeRate] = useState<number>(41.5); // 匯率：1 TWD = ? KRW
   const [profitMargin, setProfitMargin] = useState<number>(30); // 預期利潤 %
   
   // 新增：本批次總重量 (KG) - 用於計算總運費
@@ -378,16 +378,16 @@ const App = () => {
 
     // 2. 計算總成本 (根據總重量 Total Billed Weight 計算要付給貨運行的錢)
     // A. 國際運費 (韓幣/KG * 總KG * 匯率)
-    const totalIntlShipTWD = (ratesValue.intlRateKRW * totalBilledWeightValue) * exchangeRateValue;
+    const totalIntlShipTWD = (ratesValue.intlRateKRW * totalBilledWeightValue) / exchangeRateValue;
     
     // B. 關稅 & 國內運 (台幣/KG * 總KG)
     const totalTaxDomTWD = ratesValue.taxDomesticRateTWD * totalBilledWeightValue;
     
     // C. 箱子費用 (韓幣 * 匯率)
-    const totalBoxTWD = ratesValue.boxCostKRW * exchangeRateValue;
+    const totalBoxTWD = ratesValue.boxCostKRW / exchangeRateValue;
 
     // D. 韓國 3% 費用總額 (總韓幣 * 3% * 匯率)
-    const totalHandlingFeeTWD = (totalKRW * exchangeRateValue) * 0.03;
+    const totalHandlingFeeTWD = (totalKRW / exchangeRateValue) * 0.03;
 
     // 3. 逐項計算分攤
     const calculatedItems = items.map(item => {
@@ -396,7 +396,7 @@ const App = () => {
       const itemWeight = safeNumber(item.weight);
 
       // A. 商品本體 (台幣)
-      const baseCostTWD = itemPriceKRW * exchangeRateValue;
+      const baseCostTWD = itemPriceKRW / exchangeRateValue;
       
       // B. 韓國 3% 費用 (按金額計算：商品價錢 * 3%)
       const handlingFee = baseCostTWD * 0.03;
@@ -881,7 +881,7 @@ const App = () => {
                         </div>
                       </div>
                       <div>
-                         <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">匯率</div>
+                         <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">匯率 (1 TWD = KRW)</div>
                          <div className="font-mono text-slate-600">{order.exchangeRate}</div>
                       </div>
                       <div>
@@ -956,7 +956,7 @@ const App = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs text-slate-600 uppercase tracking-wide font-medium flex items-center gap-1">
-                      <RefreshCw className="w-3 h-3" /> 匯率
+                      <RefreshCw className="w-3 h-3" /> 匯率 (1 TWD = KRW)
                     </label>
                     <div className="relative">
                       <input
@@ -1061,7 +1061,7 @@ const App = () => {
                         />
                       </div>
                       <div className="text-[10px] text-right text-slate-400 mt-1">
-                        ≈ TWD {fmt(safeNumber(rates.boxCostKRW) * safeNumber(exchangeRate))}
+                        ≈ TWD {fmt(safeNumber(rates.boxCostKRW) / safeNumber(exchangeRate))}
                       </div>
                     </div>
                   </div>
