@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Calculator, Info, RefreshCw, Scale, Settings, ChevronDown, TrendingUp, Layers, History, Save, Clock, ArrowRight, CheckCircle, X, Package, Search } from 'lucide-react';
 
+const parseNumericInput = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
+const safeNumber = (value: number) => (Number.isNaN(value) ? 0 : value);
+const displayNumber = (value: number) => (Number.isNaN(value) ? '' : value);
+
 // --- 子組件：通知提醒 (Toast) ---
 interface ToastProps {
   message: string;
@@ -146,7 +150,7 @@ const ItemCard = ({ item, onRemove, onChange, onBlur, onToggleDetail, isDetailOp
                 <input
                   type="number"
                   step="0.1"
-                  value={item.weight || ''}
+                  value={displayNumber(item.weight)}
                   onChange={(e) => onChange(item.id, 'weight', e.target.value)}
                   onBlur={() => onBlur && onBlur(item.id)}
                   className="w-full bg-emerald-50 border border-emerald-300 rounded-lg px-2 py-1.5 text-center text-emerald-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -157,7 +161,7 @@ const ItemCard = ({ item, onRemove, onChange, onBlur, onToggleDetail, isDetailOp
                 <label className="text-[10px] text-slate-600 uppercase block mb-1">韓幣單價</label>
                 <input
                   type="number"
-                  value={item.priceKRW || ''}
+                  value={displayNumber(item.priceKRW)}
                   onChange={(e) => onChange(item.id, 'priceKRW', e.target.value)}
                   onBlur={() => onBlur && onBlur(item.id)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -167,7 +171,7 @@ const ItemCard = ({ item, onRemove, onChange, onBlur, onToggleDetail, isDetailOp
                 <label className="text-[10px] text-slate-600 uppercase block mb-1">數量</label>
                 <input
                   type="number"
-                  value={item.quantity || ''}
+                  value={displayNumber(item.quantity)}
                   onChange={(e) => onChange(item.id, 'quantity', e.target.value)}
                   className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-center text-slate-700 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
@@ -314,14 +318,22 @@ const App = () => {
       const savedData = localStorage.getItem('costCalculatorData');
       if (savedData) {
         const data = JSON.parse(savedData);
-        if (data.exchangeRate !== undefined) setExchangeRate(data.exchangeRate);
-        if (data.profitMargin !== undefined) setProfitMargin(data.profitMargin);
-        if (data.totalBilledWeight !== undefined) setTotalBilledWeight(data.totalBilledWeight);
-        if (data.rates) setRates(data.rates);
+        if (data.exchangeRate !== undefined) setExchangeRate(safeNumber(data.exchangeRate));
+        if (data.profitMargin !== undefined) setProfitMargin(safeNumber(data.profitMargin));
+        if (data.totalBilledWeight !== undefined) setTotalBilledWeight(safeNumber(data.totalBilledWeight));
+        if (data.rates) {
+          setRates({
+            intlRateKRW: safeNumber(data.rates.intlRateKRW),
+            taxDomesticRateTWD: safeNumber(data.rates.taxDomesticRateTWD),
+            boxCostKRW: safeNumber(data.rates.boxCostKRW),
+          });
+        }
         if (data.items) {
           setItems(data.items.map((item: any) => ({
             ...item,
-            weight: item.weight || 0
+            weight: safeNumber(item.weight),
+            priceKRW: safeNumber(item.priceKRW),
+            quantity: safeNumber(item.quantity),
           })));
         }
       }
@@ -347,36 +359,44 @@ const App = () => {
   // --- 計算核心邏輯 ---
   useEffect(() => {
     // 1. 基礎加總
-    const totalKRW = items.reduce((sum, item) => sum + ((item.priceKRW || 0) * (item.quantity || 0)), 0);
-    const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const exchangeRateValue = safeNumber(exchangeRate);
+    const profitMarginValue = safeNumber(profitMargin);
+    const totalBilledWeightValue = safeNumber(totalBilledWeight);
+    const ratesValue = {
+      intlRateKRW: safeNumber(rates.intlRateKRW),
+      taxDomesticRateTWD: safeNumber(rates.taxDomesticRateTWD),
+      boxCostKRW: safeNumber(rates.boxCostKRW),
+    };
+
+    const totalKRW = items.reduce((sum, item) => sum + (safeNumber(item.priceKRW) * safeNumber(item.quantity)), 0);
+    const totalQty = items.reduce((sum, item) => sum + safeNumber(item.quantity), 0);
     
     // 計算商品輸入的總重量 (用於檢查是否跟總重量有落差，並計算佔比)
-    const totalItemWeight = items.reduce((sum, item) => sum + ((item.weight || 0) * (item.quantity || 0)), 0);
+    const totalItemWeight = items.reduce((sum, item) => sum + (safeNumber(item.weight) * safeNumber(item.quantity)), 0);
     // 如果商品沒填重量(為0)，為了避免分母為0，使用數量做為權重備案
     const useWeightForAllocation = totalItemWeight > 0;
 
     // 2. 計算總成本 (根據總重量 Total Billed Weight 計算要付給貨運行的錢)
     // A. 國際運費 (韓幣/KG * 總KG * 匯率)
-    const currentTotalBilledWeight = totalBilledWeight || 0;
-    const totalIntlShipTWD = (rates.intlRateKRW * currentTotalBilledWeight) * exchangeRate;
+    const totalIntlShipTWD = (ratesValue.intlRateKRW * totalBilledWeightValue) * exchangeRateValue;
     
     // B. 關稅 & 國內運 (台幣/KG * 總KG)
-    const totalTaxDomTWD = rates.taxDomesticRateTWD * currentTotalBilledWeight;
+    const totalTaxDomTWD = ratesValue.taxDomesticRateTWD * totalBilledWeightValue;
     
     // C. 箱子費用 (韓幣 * 匯率)
-    const totalBoxTWD = rates.boxCostKRW * exchangeRate;
+    const totalBoxTWD = ratesValue.boxCostKRW * exchangeRateValue;
 
     // D. 韓國 3% 費用總額 (總韓幣 * 3% * 匯率)
-    const totalHandlingFeeTWD = (totalKRW * exchangeRate) * 0.03;
+    const totalHandlingFeeTWD = (totalKRW * exchangeRateValue) * 0.03;
 
     // 3. 逐項計算分攤
     const calculatedItems = items.map(item => {
-      const itemPriceKRW = item.priceKRW || 0;
-      const itemQuantity = item.quantity || 0;
-      const itemWeight = item.weight || 0;
+      const itemPriceKRW = safeNumber(item.priceKRW);
+      const itemQuantity = safeNumber(item.quantity);
+      const itemWeight = safeNumber(item.weight);
 
       // A. 商品本體 (台幣)
-      const baseCostTWD = itemPriceKRW * exchangeRate;
+      const baseCostTWD = itemPriceKRW * exchangeRateValue;
       
       // B. 韓國 3% 費用 (按金額計算：商品價錢 * 3%)
       const handlingFee = baseCostTWD * 0.03;
@@ -402,7 +422,7 @@ const App = () => {
       const finalUnitCost = baseCostTWD + handlingFee + unitIntlShip + unitTaxDom + unitBox;
 
       // 建議售價
-      const suggestedPrice = finalUnitCost * (1 + (profitMargin || 0) / 100);
+      const suggestedPrice = finalUnitCost * (1 + profitMarginValue / 100);
 
       return {
         ...item,
@@ -440,11 +460,20 @@ const App = () => {
 
     try {
       const dataToSave = {
-        exchangeRate,
-        profitMargin,
-        totalBilledWeight,
-        rates,
-        items,
+        exchangeRate: safeNumber(exchangeRate),
+        profitMargin: safeNumber(profitMargin),
+        totalBilledWeight: safeNumber(totalBilledWeight),
+        rates: {
+          intlRateKRW: safeNumber(rates.intlRateKRW),
+          taxDomesticRateTWD: safeNumber(rates.taxDomesticRateTWD),
+          boxCostKRW: safeNumber(rates.boxCostKRW),
+        },
+        items: items.map(item => ({
+          ...item,
+          priceKRW: safeNumber(item.priceKRW),
+          quantity: safeNumber(item.quantity),
+          weight: safeNumber(item.weight),
+        })),
       };
       localStorage.setItem('costCalculatorData', JSON.stringify(dataToSave));
     } catch (error) {
@@ -475,7 +504,7 @@ const App = () => {
 
   // --- 事件處理 ---
   const handleRateChange = (field: string, value: string) => {
-    const numVal = parseFloat(value) || 0;
+    const numVal = parseNumericInput(value);
     setRates(prev => ({ ...prev, [field]: numVal }));
   };
 
@@ -490,8 +519,8 @@ const App = () => {
         const newLib = [...prev];
         newLib[existingIdx] = {
           ...newLib[existingIdx],
-          priceKRW: item.priceKRW,
-          weight: item.weight
+          priceKRW: safeNumber(item.priceKRW),
+          weight: safeNumber(item.weight)
         };
         return newLib;
       } else {
@@ -499,8 +528,8 @@ const App = () => {
         return [...prev, {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
           name: item.name,
-          priceKRW: item.priceKRW,
-          weight: item.weight
+          priceKRW: safeNumber(item.priceKRW),
+          weight: safeNumber(item.weight)
         }];
       }
     });
@@ -509,7 +538,7 @@ const App = () => {
   const handleItemChange = (id: number, field: string, value: string) => {
     const newItems = items.map(item => {
       if (item.id === id) {
-        return { ...item, [field]: field === 'name' ? value : parseFloat(value) || 0 };
+        return { ...item, [field]: field === 'name' ? value : parseNumericInput(value) };
       }
       return item;
     });
@@ -556,11 +585,20 @@ const App = () => {
       id: timestamp.toString(),
       timestamp,
       dateStr,
-      items: [...items],
-      rates: { ...rates },
-      exchangeRate,
-      profitMargin,
-      totalBilledWeight,
+      items: items.map(item => ({
+        ...item,
+        priceKRW: safeNumber(item.priceKRW),
+        quantity: safeNumber(item.quantity),
+        weight: safeNumber(item.weight),
+      })),
+      rates: {
+        intlRateKRW: safeNumber(rates.intlRateKRW),
+        taxDomesticRateTWD: safeNumber(rates.taxDomesticRateTWD),
+        boxCostKRW: safeNumber(rates.boxCostKRW),
+      },
+      exchangeRate: safeNumber(exchangeRate),
+      profitMargin: safeNumber(profitMargin),
+      totalBilledWeight: safeNumber(totalBilledWeight),
       totals: { ...totals } // 儲存當下的計算快照
     };
 
@@ -577,15 +615,21 @@ const App = () => {
         // 確保載入的資料結構正確，避免舊資料缺項導致報錯
         setItems(order.items?.map(item => ({
           ...item,
-          weight: item.weight || 0,
-          priceKRW: item.priceKRW || 0,
-          quantity: item.quantity || 0
+          weight: safeNumber(item.weight),
+          priceKRW: safeNumber(item.priceKRW),
+          quantity: safeNumber(item.quantity)
         })) || []);
         
-        if (order.rates) setRates(order.rates);
-        if (order.exchangeRate !== undefined) setExchangeRate(order.exchangeRate);
-        if (order.profitMargin !== undefined) setProfitMargin(order.profitMargin);
-        if (order.totalBilledWeight !== undefined) setTotalBilledWeight(order.totalBilledWeight);
+        if (order.rates) {
+          setRates({
+            intlRateKRW: safeNumber(order.rates.intlRateKRW),
+            taxDomesticRateTWD: safeNumber(order.rates.taxDomesticRateTWD),
+            boxCostKRW: safeNumber(order.rates.boxCostKRW),
+          });
+        }
+        if (order.exchangeRate !== undefined) setExchangeRate(safeNumber(order.exchangeRate));
+        if (order.profitMargin !== undefined) setProfitMargin(safeNumber(order.profitMargin));
+        if (order.totalBilledWeight !== undefined) setTotalBilledWeight(safeNumber(order.totalBilledWeight));
         
         setView('calculator'); // 切換回計算機頁面
         setNotification('訂單載入成功！');
@@ -626,7 +670,7 @@ const App = () => {
 
   const updateProduct = (id: string, field: string, value: any) => {
     setProductLibrary(prev => prev.map(p => 
-      p.id === id ? { ...p, [field]: field === 'name' ? value : parseFloat(value) || 0 } : p
+      p.id === id ? { ...p, [field]: field === 'name' ? value : parseNumericInput(value) } : p
     ));
   };
 
@@ -635,9 +679,9 @@ const App = () => {
     setItems([...items, { 
       id: newId, 
       name: product.name, 
-      priceKRW: product.priceKRW, 
+      priceKRW: safeNumber(product.priceKRW), 
       quantity: 1, 
-      weight: product.weight 
+      weight: safeNumber(product.weight) 
     }]);
     setView('calculator');
     setNotification(`已匯入 ${product.name}`);
@@ -735,7 +779,7 @@ const App = () => {
                           <span className="text-xs text-slate-400">₩</span>
                           <input 
                             type="number"
-                            value={product.priceKRW}
+                            value={displayNumber(product.priceKRW)}
                             onChange={(e) => updateProduct(product.id, 'priceKRW', e.target.value)}
                             className="w-full font-mono text-slate-700 bg-slate-50 rounded px-2 py-1 text-sm border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none"
                           />
@@ -748,7 +792,7 @@ const App = () => {
                           <input 
                             type="number"
                             step="0.1"
-                            value={product.weight}
+                            value={displayNumber(product.weight)}
                             onChange={(e) => updateProduct(product.id, 'weight', e.target.value)}
                             className="w-full font-mono text-slate-700 bg-slate-50 rounded px-2 py-1 text-sm border border-transparent focus:border-emerald-300 focus:bg-white focus:outline-none"
                           />
@@ -918,8 +962,8 @@ const App = () => {
                       <input
                         type="number"
                         step="0.001"
-                        value={exchangeRate}
-                        onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
+                        value={displayNumber(exchangeRate)}
+                        onChange={(e) => setExchangeRate(parseNumericInput(e.target.value))}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-lg font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">KRW</span>
@@ -930,8 +974,8 @@ const App = () => {
                     <div className="relative">
                       <input
                         type="number"
-                        value={profitMargin}
-                        onChange={(e) => setProfitMargin(parseFloat(e.target.value) || 0)}
+                        value={displayNumber(profitMargin)}
+                        onChange={(e) => setProfitMargin(parseNumericInput(e.target.value))}
                         className="w-full bg-emerald-50 border border-emerald-300 rounded-lg px-3 py-2.5 text-lg font-mono font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg text-emerald-600 font-bold">%</span>
@@ -965,8 +1009,8 @@ const App = () => {
                     <p className="text-xs text-emerald-600 mb-3">物流公司量秤的計費重量</p>
                     <input
                       type="number"
-                      value={totalBilledWeight}
-                      onChange={(e) => setTotalBilledWeight(parseFloat(e.target.value) || 0)}
+                      value={displayNumber(totalBilledWeight)}
+                      onChange={(e) => setTotalBilledWeight(parseNumericInput(e.target.value))}
                       className="w-full text-center text-3xl font-mono font-black p-3 bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-emerald-700 transition-all"
                     />
                   </div>
@@ -981,7 +1025,7 @@ const App = () => {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₩</span>
                         <input
                           type="number"
-                          value={rates.intlRateKRW}
+                          value={displayNumber(rates.intlRateKRW)}
                           onChange={(e) => handleRateChange('intlRateKRW', e.target.value)}
                           className="w-full text-right pr-3 pl-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 font-mono transition-all"
                         />
@@ -996,7 +1040,7 @@ const App = () => {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
                         <input
                           type="number"
-                          value={rates.taxDomesticRateTWD}
+                          value={displayNumber(rates.taxDomesticRateTWD)}
                           onChange={(e) => handleRateChange('taxDomesticRateTWD', e.target.value)}
                           className="w-full text-right pr-3 pl-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 font-mono transition-all"
                         />
@@ -1011,13 +1055,13 @@ const App = () => {
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">₩</span>
                         <input
                           type="number"
-                          value={rates.boxCostKRW}
+                          value={displayNumber(rates.boxCostKRW)}
                           onChange={(e) => handleRateChange('boxCostKRW', e.target.value)}
                           className="w-full text-right pr-3 pl-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-700 font-mono transition-all"
                         />
                       </div>
                       <div className="text-[10px] text-right text-slate-400 mt-1">
-                        ≈ TWD {fmt(rates.boxCostKRW * exchangeRate)}
+                        ≈ TWD {fmt(safeNumber(rates.boxCostKRW) * safeNumber(exchangeRate))}
                       </div>
                     </div>
                   </div>
